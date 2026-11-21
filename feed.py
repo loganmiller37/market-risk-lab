@@ -1,7 +1,10 @@
 """A fresh process per analysis keeps provider caches from spanning runs."""
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-import json, re, sys
+import json, math, re, sys
+from datetime import datetime, timezone
+from bs4 import BeautifulSoup
+from curl_cffi import requests as browser_requests
 import pandas as pd
 import requests
 import yfinance as yf
@@ -21,6 +24,34 @@ def resolve(term, directory):
     if len(choices)==1:return choices[0]
     if choices:raise ValueError("Choose a ticker: "+", ".join(choices))
     raise ValueError("Enter the U.S. ticker symbol.")
+
+def stock_analysis_beta(url):
+    response = browser_requests.get(url, impersonate="chrome", timeout=10)
+    response.raise_for_status()
+    soup = BeautifulSoup(response.text, "html.parser")
+    for row in soup.select("tr"):
+        cells = row.find_all("td", recursive=False)
+        if len(cells) == 2 and cells[0].get_text(strip=True) == "Beta (5Y)":
+            return float(cells[1].get_text(strip=True).replace("−", "-"))
+    raise ValueError("Published five-year beta missing")
+
+
+def published_beta(ticker):
+    yahoo_url = f"https://finance.yahoo.com/quote/{ticker}/key-statistics/"
+    stats_url = f"https://stockanalysis.com/stocks/{ticker.lower()}/statistics/"
+    for source, url in [("Yahoo Finance", yahoo_url), ("Stock Analysis", stats_url)]:
+        try:
+            value = (float(yf.Ticker(ticker).get_info()["beta"])
+                     if source == "Yahoo Finance" else stock_analysis_beta(url))
+            if math.isfinite(value):
+                break
+        except Exception:
+            pass
+    else:
+        value, source, url = None, "Unavailable", stats_url
+    return ticker, {"value": value, "source": source, "url": url,
+                    "checked": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")}
+
 
 def fetch(req):
     directory=json.loads(Path(__file__).with_name('names.json').read_text())
@@ -50,14 +81,11 @@ def fetch(req):
         prices=raw['Adj Close']
     if any(t not in prices or prices[t].dropna().empty for t in ['SPY','QQQ']):
         raise ValueError("Benchmark prices unavailable. Check the provider and retry.")
-    def beta(t):
-        try:
-            val=yf.Ticker(t).get_info().get('beta')
-            return t,float(val) if val is not None and pd.notna(val) else None
-        except Exception:return t,None
-    with ThreadPoolExecutor(5) as pool:published=dict(pool.map(beta,stocks))
+    with ThreadPoolExecutor(4) as pool:
+        citations = dict(pool.map(published_beta, stocks))
+    published = {ticker: rec["value"] for ticker, rec in citations.items()}
     prices.index=pd.to_datetime(prices.index).tz_localize(None)
-    return dict(stocks=stocks,errors=errors,published=published,prices=prices.to_json(orient='split',date_format='iso',double_precision=15))
+    return dict(stocks=stocks,errors=errors,published=published,citations=citations,prices=prices.to_json(orient='split',date_format='iso',double_precision=15))
 
 if __name__=='__main__':
     try:print(json.dumps(fetch(json.load(sys.stdin))))

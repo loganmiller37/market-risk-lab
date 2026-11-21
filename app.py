@@ -36,7 +36,10 @@ if run:
             table,issues,series=analyze(prices,reply['stocks'],md,wd,rf,premium,reply['published'])
             for msg in reply['errors']+issues:st.warning(msg)
             if table.empty:st.error('No stock had complete, current history for every model.');st.stop()
-            meta={'Requested (UTC)':moment.strftime('%Y-%m-%d %H:%M:%S'),'Prices':provider,'Published betas':'Yahoo Finance snapshot, fetched on this run; vendor effective date unavailable',
+            references = reply['citations']
+            for label, field in [('Beta provider', 'source'), ('Beta source link', 'url'), ('Beta checked (UTC)', 'checked')]:
+                table[label] = table.Ticker.map(lambda ticker: references[ticker][field])
+            meta={'Requested (UTC)':moment.strftime('%Y-%m-%d %H:%M:%S'),'Prices':provider,'Published betas':'Per-stock provider, URL and retrieval time on Results; vendor windows may differ',
                   'Latest SPY price received':prices.SPY.last_valid_index().date().isoformat(),'Monthly through':str(md[-1].date()),'Weekly through':str(wd[-1].date()),
                   'Risk-free rate (%)':rf,'Market risk premium (%)':premium}
             st.session_state.report=(table,meta,excel(table,series,prices,meta),reply['errors']+issues)
@@ -62,12 +65,16 @@ if len(case):
     a=case.iloc[0];others=base[(base.Beta>a.Beta)&(base['5Y volatility %']<a['5Y volatility %'])].sort_values('Beta',ascending=False)
     if len(others):
         b=others.iloc[0];st.write(f"**{a.Ticker} and {b.Ticker} illustrate the Apex case.** {a.Ticker} had higher total volatility ({a['5Y volatility %']:.1f}% vs. {b['5Y volatility %']:.1f}%) and lower market beta ({a.Beta:.2f} vs. {b.Beta:.2f}).")
+st.subheader('Estimated vs. published beta')
+comparison = base[['Ticker','Beta','Published beta','Base − published','Beta provider','Beta source link','Beta checked (UTC)']]
+st.dataframe(comparison.round(3), hide_index=True, width='stretch',
+             column_config={'Beta': 'Estimated beta (5Y SPY)', 'Beta source link': st.column_config.LinkColumn('Source', display_text='View source')})
 st.subheader('Model sensitivity')
 st.caption(f"CAPM uses a {meta['Risk-free rate (%)']:g}% risk-free rate and a {meta['Market risk premium (%)']:g}% premium in every scenario. Changes are measured against the five-year monthly SPY estimate.")
 selection=st.selectbox('Inspect a company',['All stocks']+base.Ticker.tolist())
 view=table if selection=='All stocks' else table[table.Ticker==selection]
 st.dataframe(view.round(3),hide_index=True,width='stretch')
-if base['Published beta'].isna().any():st.caption('Blank published betas mean Yahoo did not supply a usable value for that ticker on this request.')
+if base['Published beta'].isna().any():st.caption('Both sources were checked for the tickers marked Unavailable. The source links let you inspect those observations.')
 st.download_button('Download Excel analysis',download,'Market_Risk_Lab.xlsx',mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 with st.expander('Calculation details and sources'):
     st.write('Beta is the regression slope of adjusted stock returns on benchmark returns. Monthly volatility is sample standard deviation × √12. Each calculation uses the last exchange session of each completed period. Stocks missing a required endpoint are flagged.')
