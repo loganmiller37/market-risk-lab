@@ -1,0 +1,7 @@
+# Market Risk Lab
+Windows: install Python 3.12 if needed, extract the entire ZIP, and double-click Start_Windows.bat. Keep the terminal open while using the dashboard. The first launch installs dependencies.
+Desktop Codex: open the extracted folder and ask “Run this Streamlit dashboard locally using the existing requirements.txt and open it in my browser.”
+Mac/Linux: create a Python 3.12 virtual environment, activate it, run pip install -r requirements.txt, then python -m streamlit run app.py.
+Enter U.S. stock names or tickers separated by commas. Use exact tickers for ambiguous names or share classes. Click Analyze with fresh data for every new request. Yahoo Finance requires no key. For Tiingo adjusted prices select Tiingo and enter your API token. Published beta lookups use Yahoo in either mode. An unavailable published beta is shown as blank.
+The page shows retrieval time and data cutoffs. Completed months and weeks follow the NYSE calendar including holidays and early closes. An unfinished period is excluded. Missing endpoint prices cause an exclusion. The premium and risk-free rate are user scenarios. No archived stock price data are bundled.
+The localhost address works only on the computer running the app. For a public link, deploy app.py and the other project files to a Python host that supports Streamlit and outbound market-data requests. Market data providers can limit requests.
