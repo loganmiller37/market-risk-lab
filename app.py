@@ -10,7 +10,7 @@ st.set_page_config(page_title='Market Risk Lab',layout='wide')
 st.title('Market Risk Lab')
 st.write('Estimate stock betas, compare total volatility, and see how the required return changes with the model.')
 with st.form('request'):
-    names=st.text_area('U.S.-listed companies or tickers','Newmont, Apple, Boeing, Cigna, Coca-Cola, JPM, Microsoft, Nvidia, Tesla, XOM',height=70)
+    names=st.text_area('U.S.-listed companies or tickers','NEM, AAPL, BA, CI, KO, JPM, MSFT, NVDA, TSLA, XOM, COST, CAT, DUK, AMT, NFLX',height=70)
     left,right=st.columns(2)
     rf=left.number_input('Risk-free rate assumption (%)',value=4.0,step=.25)
     premium=right.number_input('Market risk premium assumption (%)',value=5.0,step=.25)
